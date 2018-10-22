@@ -3,6 +3,7 @@ using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Navigation;
 using WinGoTag.Helpers;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
@@ -14,14 +15,45 @@ namespace WinGoTag.View.SettingsView
     /// </summary>
     public sealed partial class MainSettingsView : Page
     {
-        public MainSettingsView() => InitializeComponent();
+        private bool _naviigated = false;
+        public MainSettingsView()
+        {
+            InitializeComponent();
+            EditFr.Navigate(typeof(Page));
+        }
+
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            if (e.NavigationMode != NavigationMode.Back)
+                AppCore.ModerateBack(Frame.GoBack);
+            var r = await AppCore.InstaApi.GetCurrentUserAsync();
+            if (r.Value == null) { PrivateTS.IsEnabled = false; return; }
+            PrivateTS.IsOn = r.Value.IsPrivate;
+            _naviigated = true;
+        }
+
+        public void Return()
+        {
+            Frame.GoBack();
+            AppCore.ModerateBack("");
+        }
 
         void LVI_Tapped(object sender, TappedRoutedEventArgs e)
         {
             switch ((sender as ListViewItem).Content.ToString())
             {
                 case "Story Settings":
-                    Frame.Navigate(typeof(StorySettingsView));
+                    EditFr.Navigate(typeof(StorySettingsView));
+                    break;
+                case "Change Password":
+                    EditFr.Navigate(typeof(ChangePasswordView));
+                    break;
+                case "Two Factor Authentication":
+                    EditFr.Navigate(typeof(TwoFactorSettingsView));
+                    break;
+                case "Posts You've Liked":
+                    EditFr.Navigate(typeof(LikedFeedsView));
                     break;
                 default:
                     break;
@@ -74,5 +106,34 @@ namespace WinGoTag.View.SettingsView
         }
 
         private void HyperlinkButton_Click(object sender, RoutedEventArgs e) => "https://t.me/joinchat/DQwGRg9P42TzBSJgGOYoJw".OpenUrl();
+
+        private void ToBackBT_Click(object sender, RoutedEventArgs e) => Return();
+
+        private async void PrivateTS_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_naviigated == false || PrivateTS.IsEnabled == false) return;
+            PrivateTS.IsEnabled = false;
+            if (PrivateTS.IsOn)
+            {
+                var r = await AppCore.InstaApi.SetAccountPrivateAsync();
+                if (r.Value != null)
+                {
+                    PrivateTS.IsOn = r.Value.IsPrivate;
+                    await new MessageDialog(r.Info.Message).ShowAsync();
+                }
+                else PrivateTS.IsOn = !PrivateTS.IsOn;
+            }
+            else
+            {
+                var r = await AppCore.InstaApi.SetAccountPublicAsync();
+                if (r.Value != null)
+                {
+                    PrivateTS.IsOn = r.Value.IsPrivate;
+                    await new MessageDialog(r.Info.Message).ShowAsync();
+                }
+                else PrivateTS.IsOn = !PrivateTS.IsOn;
+            }
+            PrivateTS.IsEnabled = true;
+        }
     }
 }
